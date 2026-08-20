@@ -1,0 +1,17 @@
+# Render Blueprint — in the Render dashboard, "New +" → "Blueprint", point it at this repo,
+# and Render reads this file to set the service up. See README's Deploying section for the
+# full walkthrough, including the free-tier persistence caveat (no disk = data resets on
+# every redeploy) and how to add a paid Disk for real use.
+services:
+  - type: web
+    name: nexus-invoice-app
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: APP_USERNAME
+        sync: false
+      - key: APP_PASSWORD
+        generateValue: true
+      - key: PORT
+        value: 4000
