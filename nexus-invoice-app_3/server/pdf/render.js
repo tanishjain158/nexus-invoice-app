@@ -80,4 +80,11 @@ async function renderInvoicePdf(full) {
   }
 }
 
-module.exports = { renderInvoicePdf };
+async function closeBrowser() {
+  if (!browserPromise) return;
+  const pending = browserPromise;
+  browserPromise = null;
+  try { await (await pending).close(); } catch (e) { /* already dead */ }
+}
+
+module.exports = { renderInvoicePdf, closeBrowser };

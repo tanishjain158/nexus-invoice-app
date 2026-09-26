@@ -31,13 +31,14 @@ router.get('/:id/invoices', (req, res) => {
 
 router.post('/', (req, res) => {
   const b = req.body;
+  if (!b.name || !String(b.name).trim()) return res.status(400).json({ error: 'Customer name is required' });
   const stmt = db.prepare(`INSERT INTO customers
     (name, consignee_address, buyer_name, buyer_address, country_of_final_destination, final_destination,
      seaport_of_discharge, default_delivery_terms, default_payment_terms, contact_email, contact_phone, notes)
     VALUES (@name, @consignee_address, @buyer_name, @buyer_address, @country_of_final_destination, @final_destination,
      @seaport_of_discharge, @default_delivery_terms, @default_payment_terms, @contact_email, @contact_phone, @notes)`);
   const info = stmt.run({
-    name: b.name,
+    name: String(b.name).trim(),
     consignee_address: b.consignee_address || '',
     buyer_name: b.buyer_name || '',
     buyer_address: b.buyer_address || '',

@@ -18,7 +18,7 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 COPY . .
 

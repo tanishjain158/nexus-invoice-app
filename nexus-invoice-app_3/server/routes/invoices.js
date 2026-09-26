@@ -18,6 +18,28 @@ function nextInvoiceNo(exporterId) {
   return `${prefix}${String(next).padStart(4, '0')}`;
 }
 
+// Returns a human-readable error for the first bad line item, or null if all are valid. Run
+// before touching the database so a bad line never produces a half-written invoice or a
+// cryptic SQLite/TypeError message.
+function validateItems(items) {
+  if (!Array.isArray(items) || !items.length) return 'At least one line item is required';
+  const productExists = db.prepare('SELECT 1 FROM products WHERE id = ?');
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i] || {};
+    const line = `Line ${i + 1}`;
+    if (!it.product_id || !productExists.get(it.product_id)) return `${line}: product not found`;
+    const quantity = Number(it.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) return `${line}: quantity must be a positive number`;
+    const rate = Number(it.cif_rate);
+    if (!Number.isFinite(rate) || rate < 0) return `${line}: CIF rate must be a number of 0 or more`;
+    for (const pl of it.packing || []) {
+      const n = Number(pl.no_of_packages);
+      if (!Number.isInteger(n) || n <= 0) return `${line}: number of packages must be a whole number above 0`;
+    }
+  }
+  return null;
+}
+
 function computeAndPersistItems(invoiceId, items) {
   const insertItem = db.prepare(`INSERT INTO invoice_items
     (invoice_id, product_id, sort_order, pack_size, batch_no, mfg_date, exp_date, quantity, cif_rate, amount)
@@ -121,10 +143,16 @@ router.post('/', (req, res) => {
   if (!b.customer_id || !b.items || !b.items.length) {
     return res.status(400).json({ error: 'customer_id and at least one item are required' });
   }
+  const itemError = validateItems(b.items);
+  if (itemError) return res.status(400).json({ error: itemError });
   const exporterId = b.exporter_id || 1;
-  const invoiceNo = b.invoice_no || nextInvoiceNo(exporterId);
+  if (!db.prepare('SELECT 1 FROM exporters WHERE id = ?').get(exporterId)) {
+    return res.status(400).json({ error: 'Exporter not found' });
+  }
 
   const tx = db.transaction(() => {
+    // Allocate the number inside the transaction so it's read and used atomically.
+    const invoiceNo = b.invoice_no || nextInvoiceNo(exporterId);
     const stmt = db.prepare(`INSERT INTO invoices
       (invoice_no, invoice_date, exporter_id, customer_id, exporters_ref, buyer_order_no, buyer_order_date,
        other_references, country_of_origin, country_of_final_destination, pre_carriage_by, place_of_receipt,
@@ -178,6 +206,10 @@ router.put('/:id', (req, res) => {
   const b = req.body;
   const existing = db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
+  if (b.items) {
+    const itemError = validateItems(b.items);
+    if (itemError) return res.status(400).json({ error: itemError });
+  }
 
   const tx = db.transaction(() => {
     const fields = ['invoice_date', 'customer_id', 'exporters_ref', 'buyer_order_no', 'buyer_order_date',
@@ -215,7 +247,8 @@ router.get('/:id/pdf', async (req, res) => {
   try {
     const pdfBuffer = await renderInvoicePdf(full);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${full.invoice.invoice_no}.pdf"`);
+    const safeName = String(full.invoice.invoice_no).replace(/[^\w.-]/g, '_');
+    res.setHeader('Content-Disposition', `inline; filename="${safeName}.pdf"`);
     res.send(pdfBuffer);
   } catch (e) {
     console.error(e);
