@@ -89,7 +89,17 @@ every boot — so it's safe, and it means dropping a newer `catalog_data.js` in 
 the catalogue is updated) will pick up any new products without touching ones you've already
 customized.
 
-To run on a different port: `PORT=5000 npm start`.
+To run on a different port: `PORT=5000 npm start`. To keep the database somewhere other than
+`./data`, set `DATA_DIR` (e.g. `DATA_DIR=/var/lib/nexus npm start`).
+
+### Tests
+
+```bash
+npm test
+```
+
+Runs the API and utility tests (Node's built-in test runner) against a throwaway database, so it
+never touches `data/`.
 
 ### Logging in
 

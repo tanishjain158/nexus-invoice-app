@@ -33,8 +33,11 @@ function numberToWordsUSD(amount) {
     return s.trim();
   }
 
-  const whole = Math.floor(amount);
-  const cents = Math.round((amount - whole) * 100);
+  // Round to whole cents first, then split — rounding the fractional part on its own can yield
+  // 100 cents (e.g. 10.999 → "TEN AND CENTS ONE HUNDRED" instead of "ELEVEN").
+  const totalCents = Math.round(Number(amount || 0) * 100);
+  const whole = Math.floor(totalCents / 100);
+  const cents = totalCents % 100;
   let words = 'USD ' + intToWords(whole) + ' ONLY';
   if (cents > 0) {
     words = 'USD ' + intToWords(whole) + ' AND CENTS ' + intToWords(cents) + ' ONLY';
